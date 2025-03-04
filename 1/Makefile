@@ -5,17 +5,21 @@ ASFLAGS = -g -f elf64
 LDFLAGS = -static
 
 SRCS = lab.s
-OBJS = $(SRCS:.s=.o)
+OBJ_DIR = obj
+OBJS = $(addprefix $(OBJ_DIR)/, $(SRCS:.s=.o))
 
 EXE = bin
 
 all: $(SRCS) $(EXE)
 
 clean:
-	rm -rf $(EXE) $(OBJS)
+	rm -rf $(EXE) $(OBJ_DIR)
+
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
 
 $(EXE): $(OBJS)
 	$(LD) $(LDFLAGS) $(OBJS) -o $@
 
-.s.o:
+$(OBJ_DIR)/%.o: %.s | $(OBJ_DIR)
 	$(AS) $(ASFLAGS) $< -o $@
