@@ -1,0 +1,6 @@
+*.nam
+*.id*
+*.til
+.gdb_history
+*.o
+bin
