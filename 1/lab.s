@@ -20,6 +20,8 @@ _start:
         movsx   ebx, word [b]        
         sub     eax, ebx   
 
+        jo      overflow_error
+
         mov     ecx, dword [a]      
         imul    ecx      
         
@@ -32,9 +34,11 @@ _start:
         
         mov     ecx, dword [e]       
         movsx   esi, word [d]        
-        add     ecx, esi            
+        add     ecx, esi    
+
+        jo      overflow_error        
         
-        or      ecx, ecx
+        test    ecx, ecx
         jz      div_zero_error                 
         
         cdq                     
@@ -44,22 +48,25 @@ _start:
         
         movsx   eax, word [d]        
         movsx   ebx, word [b]        
-        add     eax, ebx            
-        cdq                         
+        add     eax, ebx         
         
+        jo      overflow_error   
+                
         mov     ecx, dword [e]       
-        or      ecx, ecx
+        test    ecx, ecx
         jz      div_zero_error                 
         
+        cdq
         idiv    ecx                 
         
-        sub     esi, eax            
-               
-        movsx   rsi, esi            
+        sub     esi, eax    
+        
+        jo      overflow_error           
+                          
         mov     qword [res], rsi     
         
         mov     eax, 60
-        xor     edi, edi
+        mov     edi, 0
         syscall
         
 div_zero_error:
