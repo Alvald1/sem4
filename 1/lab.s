@@ -63,14 +63,13 @@ _start:
         idiv    r12d           ;eax / r12d [e] -> eax, eax % r12d [e] -> edx                
         
         cdqe
-        ; Implement subtraction of r8:r10 - eax
+        ; Implement subtraction of r8:r10 - rax
         sub     r10, rax       ;r10 - rax -> r10
 
-        jo      overflow_error
-        
-        sbb     r8, 0          ;r8 - 0 - CF -> r8 
-        
-        jo      overflow_error      
+        jno     L1
+        dec     r8             ;r8 - 1 -> r8
+
+L1:        
         
         ; Result in r8:r10     
         ; python print(int(gdb.parse_and_eval("$r8")) * (2**64) + int(gdb.parse_and_eval("$r10")))                  
