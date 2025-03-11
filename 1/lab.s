@@ -1,18 +1,17 @@
 bits    64
 ;       res=a*(e-b)*c/(e+d)-(d+b)/e
 section .data
-res:
-        dq      0
+
 a:
-        dd      1000000
+        dd      214783647
 b:
-        dw      0
+        dw      -32767
 c:
-        dd      2
+        dd      214483
 d:
-        dw      32767
+        dw      0
 e:
-        dd      1000000
+        dd      1
 section .text
 global  _start
 _start:
@@ -37,14 +36,15 @@ _start:
         mov     r13d, eax
         or      r13, rdx    
                        
-        mov     eax, r10d      ;r10d [c] -> eax
-        mov     ebx, r11d      ;r11d [d] -> ebx
-        add     ebx, r12d      ;ebx + r12d [e] -> ebx
+        mov     ebx, r12d      ;r12d [e] -> ebx
+        add     ebx, r11d      ;ebx + r11d [d] -> ebx
 
         jo      overflow_error
 
         test    ebx, ebx       ;Check if ebx is zero
-        jz      div_zero_error        
+        jz      div_zero_error       
+        
+        mov     eax, r10d      ;r10d [c] -> eax 
 
         cdq
         idiv    ebx            ;eax / ebx -> eax, eax % ebx -> edx
@@ -62,6 +62,7 @@ _start:
         cdq                     
         idiv    r12d           ;eax / r12d [e] -> eax, eax % r12d [e] -> edx                
         
+        cdqe
         ; Implement subtraction of r8:r10 - eax
         sub     r10, rax       ;r10 - rax -> r10
 
@@ -71,8 +72,8 @@ _start:
         
         jo      overflow_error      
         
-        ; Result is in r8:r10     
-                          
+        ; Result in r8:r10     
+        ; python print(int(gdb.parse_and_eval("$r8")) * (2**64) + int(gdb.parse_and_eval("$r10")))                  
         mov     eax, 60
         mov     edi, 0
         syscall
