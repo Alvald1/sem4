@@ -3,7 +3,7 @@ bits    64
 section .data
 
 a:
-        dd      214783647
+        dd      -214783647
 b:
         dw      -32767
 c:
@@ -11,7 +11,7 @@ c:
 d:
         dw      0
 e:
-        dd      1
+        dd      214783647
 section .text
 global  _start
 _start:
