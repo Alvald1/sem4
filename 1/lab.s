@@ -62,14 +62,26 @@ _start:
         cdq                     
         idiv    r12d           ;eax / r12d [e] -> eax, eax % r12d [e] -> edx                
         
-        cdqe
+        
         ; Implement subtraction of r8:r10 - rax
-        sub     r10, rax       ;r10 - rax -> r10
+        cdqe
+        ; Проверяем: rax > r10 и они одного знака?
+        cmp     r10, rax       ; Сравниваем r10 и rax
+        jae     do_subtraction ; Если r10 >= rax, переходим к вычитанию
+        
+        ; Проверяем, одного ли знака числа
+        mov     rcx, r10       ; Копируем r10 в rcx
+        xor     rcx, rax       ; XOR выявит разницу в знаках
+        js      do_subtraction ; Если старший бит = 1 (разные знаки), пропускаем dec r8
+        
+        dec     r8             ; Если r10 < rax (т.е. rax > r10) и одного знака, уменьшаем r8
+        
+do_subtraction:
+        sub     r10, rax       ; r10 - rax -> r10
+        jno     L1             ; Если нет переполнения, переходим к L1
+        inc     r8             ; Если было переполнение, увеличиваем r8
 
-        jno     L1
-        dec     r8             ;r8 - 1 -> r8
-
-L1:        
+L1:     
         
         ; Result in r8:r10     
         ; python print(int(gdb.parse_and_eval("$r8")) * (2**64) + int(gdb.parse_and_eval("$r10")))                  
