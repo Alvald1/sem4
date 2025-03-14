@@ -1,0 +1,7 @@
+*.nam
+*.id*
+*.til
+.gdb_history
+obj
+bin
+*.i64
