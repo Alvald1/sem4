@@ -13,10 +13,6 @@ matrix db 5, 6, 7, 1, 1, \
 ; 16 	2 	3 	11
 ; 12 	4 	8 	9
 
-; 9		9	9	2
-; 20	17 	17 	12
-; 22 	7 	7 	14
-; 19 	10 	13 	13
 
 	
 section .text
@@ -44,8 +40,7 @@ _start:
 loop_1: ; итерация по кол-ву диагоналей
 	push rcx ; созраняем счетчик
 	
-	mov  rdi, 2
-	call calculate_address
+	
 
 	; пересчет начальный индексов
 	test r15, r15 ; если j != 0: j - 1
@@ -65,7 +60,7 @@ L2:
 	syscall
 
 
-calculate_address:
+calculate_address: ; r8, r9,
 	; r12 - (size - 1)
 	; r14 - i база
 	; r15 - j база
@@ -106,7 +101,7 @@ L6:
 	ret
 
 
-bin_search:
+bin_search: ; rcx, r8, r9, 
 	; r12 - (size - 1)
 	; r14 - i база
 	; r15 - j база
@@ -125,8 +120,12 @@ loop_2:
 	add rcx, r8 ; low + (high - low) / 2 == mid
 
 	push rdi
+	push r8
+	push r9
 	mov  rdi, rcx          ; mid
 	call calculate_address
+	pop  r9
+	pop  r8
 	pop  rdi
 
 	test rax, rax
@@ -152,8 +151,12 @@ L9:
 
 L7:
 	push rdi
+	push r8
+	push r9
 	mov  rdi, r8
 	call calculate_address
+	pop  r9
+	pop  r8
 	pop  rdi
 
 	test rax, rax
@@ -167,6 +170,106 @@ L7:
 
 L10:
 	ret
+
+calc_diag_len: 
+	; r12 - (size - 1)
+	; r14 - i база
+	; r15 - j база
+	
+	cmp r14, r15
+	mov rax, r12
+	jg  L11      ; i > j
+	sub rax, r15
+	jmp L12
+
+L11:
+	sub rax, r14
+L12:
+	inc rax
+	ret
+
+
+insert_sort: ; r8, r9, r10, r11, rcx, rdx, rbp
+	; r12 - (size - 1)
+	; r14 - i база
+	; r15 - j база
+	; rbx - база
+
+	call calc_diag_len
+	mov  r10, rax      ; diag len
+	mov  r8,  1        ; i
+
+loop_3:
+	cmp r8, r10
+	je  L13
+
+	mov r9, r8 ; j = i
+	dec r9     ; j--
+
+	mov  rdi, r8           ; i
+	push r8
+	push r9
+	call calculate_address
+	pop  r9
+	pop  r8
+
+	mov r11, [rax] ; arr[i] == selected
+
+	push r8
+	push r9
+	mov  rdi, r11
+	mov  r8,  0
+	call bin_search ; low = 0, high = j
+	pop  r9
+	pop  r8
+
+	mov rdx, rax ; location
+
+loop_4:
+	cmp r9, rdx
+	jl  L14     ; j < location
+	
+	push r8
+	push r9
+	mov  rdi, r9           ; j
+	inc  rdi               ; j + 1
+	call calculate_address
+	pop  r9
+	pop  r8
+	
+	mov rcx, rax ; arr[j + 1]
+
+	push r8
+	push r9
+	mov  rdi, r9           ; j
+	call calculate_address
+	pop  r9
+	pop  r8
+
+	mov rbp,   [rax] ; arr[j]
+	mov [rcx], rbp   ; arr[j + 1] = arr[j]
+
+	dec r9 ; j--
+
+	jmp loop_4
+
+L14:
+
+	push r8
+	push r9
+	mov  rdi, r9           ; j
+	inc  rdi               ; j + 1
+	call calculate_address
+	pop  r9
+	pop  r8
+
+	mov [rax], r11
+
+	inc r8
+	jmp loop_3
+L13:
+	ret
+
 
 
 buffer_overflow:
