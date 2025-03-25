@@ -104,3 +104,72 @@ L6:
 	add rax, rbx ; (i * size) + j + база 
 
 	ret
+
+
+bin_search:
+	; r12 - (size - 1)
+	; r14 - i база
+	; r15 - j база
+	; rbx - база
+
+	; rdi - item
+	; r8 - low
+	; r9 - high
+loop_2:
+	cmp r8, r9
+	jge L7     ; low >= high
+
+	mov rcx, r9 ; high
+	sub rcx, r8 ; high - low
+	sar rcx, 1  ; (high - low) / 2
+	add rcx, r8 ; low + (high - low) / 2 == mid
+
+	push rdi
+	mov  rdi, rcx          ; mid
+	call calculate_address
+	pop  rdi
+
+	test rax, rax
+	jz   buffer_overflow ; rax == 0
+
+
+	cmp [rax], rdi
+	jne L8         ; arr[mid] != item
+	inc rcx        ; mid + 1
+	mov rax,   rcx
+	ret
+
+L8:
+	jg  L9      ; arr[mid] > item
+	inc rcx     ; mid + 1
+	mov r8, rcx ; low = mid + 1
+	jmp loop_2
+
+L9:
+	dec rcx     ; mid - 1
+	mov r9, rcx ; high = mid - 1
+	jmp loop_2
+
+L7:
+	push rdi
+	mov  rdi, r8
+	call calculate_address
+	pop  rdi
+
+	test rax, rax
+	jz   buffer_overflow ; rax == 0
+
+	cmp rdi, [rax]
+	mov rax, r8    ; low
+	jng L10        ; item <= arr[low]	
+	inc rax        ; low + 1
+	ret
+
+L10:
+	ret
+
+
+buffer_overflow:
+	mov eax, 60
+	mov edi, 1
+	syscall
