@@ -24,6 +24,8 @@ matrix     db 5, 6, 7, 1,  \
 
 ; 3, 6, 7, 1, 2, 5,	11,	10, 4, 8, 9, 14, 12, 16, 15, 13
 
+; https://www.geeksforgeeks.org/binary-insertion-sort/
+
 	
 section .text
 global  _start
