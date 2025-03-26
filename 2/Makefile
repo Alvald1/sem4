@@ -10,7 +10,15 @@ OBJS = $(addprefix $(OBJ_DIR)/, $(SRCS:.asm=.o))
 
 EXE = bin
 
-all: $(SRCS) $(EXE)
+all: asc
+
+asc: ASFLAGS += -D SORT_ORDER=0
+asc: $(SRCS) $(EXE)
+	@echo "Compiled in ascending order"
+
+desc: ASFLAGS += -D SORT_ORDER=1
+desc: $(SRCS) $(EXE)
+	@echo "Compiled in descending order"
 
 clean:
 	rm -rf $(EXE) $(OBJ_DIR)

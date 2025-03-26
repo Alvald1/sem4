@@ -1,22 +1,26 @@
 bits    64
 	
 section .data
+%ifndef SORT_ORDER
+    SORT_ORDER equ 0 ; Default to ascending order (0), use 1 for descending
+%endif
 	
-size   db 4
-matrix db 5, 6, 7, 1, 1, \
+sort_order db SORT_ORDER
+size       db 4
+matrix     db 5, 6, 7, 1,  \
           5, 13, 14, 10, \
 		  16, 2, 3, 11,  \
 		  12, 4, 8, 9
 
 ; 5		6	7	1
-; 15	13 	14 	10
+; 5		13 	14 	10
 ; 16 	2 	3 	11
 ; 12 	4 	8 	9
 
 ; 3		6	7	1
 ; 2		5 	11 	10
-; 4 	8 	9 	14
-; 12 	16 	15 	13
+; 4 	5 	9 	14
+; 12 	16 	8 	13
 
 ; 3, 6, 7, 1, 2, 5,	11,	10, 4, 8, 9, 14, 12, 16, 15, 13
 
@@ -28,7 +32,7 @@ _start:
 	movsx r12, byte[size] ; size
 	dec   r12
 
-	mov rbx, [matrix] ; указатель на первый элемент
+	lea rbx, [matrix] ; указатель на первый элемент
 
 ; r13 - кол-во диагоналей
 	mov r13, r12
@@ -144,7 +148,18 @@ loop_2:
 	ret
 
 L8:
+	cmp byte [sort_order], 0
+	jne descending_order_1
+	
+	; Ascending order logic
 	jg  L9      ; arr[mid] > item
+	inc rcx     ; mid + 1
+	mov r8, rcx ; low = mid + 1
+	jmp loop_2
+
+descending_order_1:
+	; Descending order logic
+	jl  L9      ; arr[mid] < item (for descending order)
 	inc rcx     ; mid + 1
 	mov r8, rcx ; low = mid + 1
 	jmp loop_2
@@ -158,7 +173,7 @@ L7:
 	push rdi
 	push r8
 	push r9
-	mov  rdi, r8
+	mov  rdi, r8           ; low
 	call calculate_address
 	pop  r9
 	pop  r8
@@ -167,9 +182,21 @@ L7:
 	test rax, rax
 	jz   buffer_overflow ; rax == 0
 
+	cmp byte [sort_order], 0
+	jne descending_order_2
+	
+	; Ascending order logic
 	cmp rdi, [rax]
 	mov rax, r8    ; low
 	jng L10        ; item <= arr[low]	
+	inc rax        ; low + 1
+	ret
+
+descending_order_2:
+	; Descending order logic
+	cmp rdi, [rax]
+	mov rax, r8    ; low
+	jnl L10        ; item >= arr[low] (for descending order)
 	inc rax        ; low + 1
 	ret
 
@@ -181,8 +208,8 @@ calc_diag_len:
 	; r14 - i база
 	; r15 - j база
 	
-	cmp r14, r15
 	mov rax, r12
+	cmp r14, r15
 	jg  L11      ; i > j
 	sub rax, r15
 	jmp L12
@@ -222,9 +249,11 @@ loop_3:
 
 	push r8
 	push r9
+	push rcx
 	mov  rdi, r11
 	mov  r8,  0
 	call bin_search ; low = 0, high = j
+	pop  rcx
 	pop  r9
 	pop  r8
 
