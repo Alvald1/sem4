@@ -112,7 +112,7 @@ L6:
 	ret
 
 
-bin_search: ; ecx, r8d, r9d, 
+bin_search: ; ecx, r8d, r9d, edx
 	; r12d - (size - 1)
 	; r14d - i база
 	; r15d - j база
@@ -134,9 +134,7 @@ loop_2:
 	push r8
 	push r9
 	mov  edi, ecx          ; mid
-	push rdx
-	call calculate_address
-	pop  rdx
+	call calculate_address ; r8d, r9d, edx
 	pop  r9
 	pop  r8
 	pop  rdi
@@ -181,9 +179,7 @@ L7:
 	push r8
 	push r9
 	mov  edi, r8d          ; low
-	push rdx
-	call calculate_address
-	pop  rdx
+	call calculate_address ; r8d, r9d, edx
 	pop  r9
 	pop  r8
 	pop  rdi
@@ -251,7 +247,7 @@ loop_3:
 	push r8
 	push r9
 	push rdx
-	call calculate_address
+	call calculate_address ; r8d, r9d, edx
 	pop  rdx
 	pop  r9
 	pop  r8
@@ -261,9 +257,11 @@ loop_3:
 	push r8
 	push r9
 	push rcx
+	push rdx
 	mov  edi, r11d
-	mov  r8d, 0
-	call bin_search ; low = 0, high = j
+	mov  r8d, 0     ; low = 0, high = j
+	call bin_search ; ecx, r8d, r9d, edx
+	pop  rdx
 	pop  rcx
 	pop  r9
 	pop  r8
@@ -279,7 +277,7 @@ loop_4:
 	mov  edi, r9d          ; j
 	inc  edi               ; j + 1
 	push rdx
-	call calculate_address
+	call calculate_address ; r8d, r9d, edx
 	pop  rdx
 	pop  r9
 	pop  r8
@@ -290,7 +288,7 @@ loop_4:
 	push r9
 	mov  edi, r9d          ; j
 	push rdx
-	call calculate_address
+	call calculate_address ; r8d, r9d, edx
 	pop  rdx
 	pop  r9
 	pop  r8
@@ -309,7 +307,7 @@ L14:
 	mov  edi, r9d          ; j
 	inc  edi               ; j + 1
 	push rdx
-	call calculate_address
+	call calculate_address ; r8d, r9d, edx
 	pop  rdx
 	pop  r9
 	pop  r8
