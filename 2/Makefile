@@ -12,11 +12,11 @@ EXE = bin
 
 all: asc
 
-asc: ASFLAGS += -D SORT_ORDER=0
+
 asc: $(SRCS) $(EXE)
 	@echo "Compiled in ascending order"
 
-desc: ASFLAGS += -D SORT_ORDER=1
+desc: ASFLAGS += -D SORT_ORDER
 desc: $(SRCS) $(EXE)
 	@echo "Compiled in descending order"
 

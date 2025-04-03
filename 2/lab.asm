@@ -1,16 +1,13 @@
 bits    64
 	
 section .data
-%ifndef SORT_ORDER
-    SORT_ORDER equ 0 ; Default to ascending order (0), use 1 for descending
-%endif
-	
-sort_order db SORT_ORDER
-size       dd 4
-matrix     dd 5, 6, 7, 1,  \
-          5, 13, 14, 10, \
-		  16, 2, 3, 11,  \
-		  12, 4, 8, 9
+
+size   dd 3
+
+matrix dd 5, 6, -9, \
+		  7, -5, 78, \
+		  8, -17, -9
+          
 
 ; 5		6	7	1
 ; 5		13 	14 	10
@@ -150,23 +147,15 @@ loop_2:
 	ret
 
 L8:
-	cmp byte [sort_order], 0
-	jne descending_order_1
-
-	cmp [eax], edi
-	; Ascending order logic
-	jg  L9         ; arr[mid] > item
-	inc ecx        ; mid + 1
-	mov r8d,   ecx ; low = mid + 1
-	jmp loop_2
-
-descending_order_1:
-
-	cmp [eax], edi
+%ifdef SORT_ORDER
 	; Descending order logic
-	jl  L9         ; arr[mid] < item (for descending order)
-	inc ecx        ; mid + 1
-	mov r8d,   ecx ; low = mid + 1
+	jl L9 ; arr[mid] < item (for descending order)	
+%else
+	; Ascending order logic
+	jg L9 ; arr[mid] > item	
+%endif	
+	inc ecx      ; mid + 1
+	mov r8d, ecx ; low = mid + 1
 	jmp loop_2
 
 L9:
@@ -187,23 +176,18 @@ L7:
 	test eax, eax
 	jz   buffer_overflow ; eax == 0
 
-	cmp byte [sort_order], 0
-	jne descending_order_2
-	
-	; Ascending order logic
 	cmp edi, [eax]
 	mov eax, r8d   ; low
-	jng L10        ; item <= arr[low]	
-	inc eax        ; low + 1
+%ifdef SORT_ORDER
+	; Descending order logic
+	jnl L10 ; item >= arr[low] (for descending order)	
+%else
+	; Ascending order logic
+	jng L10 ; item <= arr[low]		
+%endif
+	inc eax ; low + 1
 	ret
 
-descending_order_2:
-	; Descending order logic
-	cmp edi, [eax]
-	mov eax, r8d   ; low
-	jnl L10        ; item >= arr[low] (for descending order)
-	inc eax        ; low + 1
-	ret
 
 L10:
 	ret
