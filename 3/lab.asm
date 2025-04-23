@@ -96,11 +96,16 @@ copy_loop:
     jle close_all
     mov r8,  rax      ; r8 = прочитано байт
 
+    ; Удалить лишние разделители в buffer
+    mov  rbx, buffer ; rbx = адрес буфера
+    mov  rdx, r8     ; rdx = длина прочитанного
+    call trim_spaces ; на выходе: rdx = новая длина
+
     ; Просто записать в dst_fd из buffer
     mov rax, 1        ; sys_write
     mov rdi, [dst_fd]
     mov rsi, buffer
-    mov rdx, r8
+    mov rdx, rdx      ; длина после trim_spaces
     syscall
     cmp rax, 0
     jl  close_all
@@ -123,3 +128,142 @@ _exit:
     mov rax, 60  ; sys_exit
     xor rdi, rdi
     syscall
+
+trim_spaces:
+    push rbx
+    push rsi
+    push rdi
+    push rcx
+    push rax
+
+    mov rsi, rbx ; Source pointer
+    mov rdi, rbx ; Destination pointer
+    xor rcx, rcx ; Source index
+    xor rax, rax ; Current char
+    mov r9,  0   ; Previous char (0 - non-space, 1 - space)
+
+    ; Skip leading spaces
+.skip_leading:
+    cmp rcx, rdx
+    jge .end_leading
+    mov al,  [rsi + rcx]
+    cmp al,  ' '
+    jne .end_leading
+    inc rcx
+    jmp .skip_leading
+
+.end_leading:
+
+    ; Main processing loop
+.loop:
+    cmp rcx, rdx
+    jge .end_loop
+    mov al,  [rsi + rcx]
+
+    ; Check for newline character
+    cmp al, 0x0A        ; '\n'
+    je  .handle_newline
+
+    cmp al, ' '
+    jne .not_space
+
+    ; Handle space character
+    cmp r9,    1
+    je  .skip_copy
+    mov r9,    1
+    mov [rdi], al
+    inc rdi
+    jmp .next
+
+.handle_newline:
+    ; Copy newline and skip leading spaces after it
+    mov [rdi], al
+    inc rdi
+    mov r9,    0  ; Reset previous space flag
+
+.skip_after_newline:
+    inc rcx
+    cmp rcx, rdx
+    jge .end_loop           ; End of buffer
+    mov al,  [rsi + rcx]
+    cmp al,  ' '
+    je  .skip_after_newline
+    dec rcx                 ; Re-process the non-space character
+    jmp .next
+
+.not_space:
+    mov r9,    0
+    mov [rdi], al
+    inc rdi
+
+.skip_copy:
+.next:
+    inc rcx
+    jmp .loop
+
+.end_loop:
+
+    ; Trim trailing spaces
+    cmp rdi,        rbx
+    je  .no_trailing
+    dec rdi
+    cmp byte [rdi], ' '
+    jne .no_trailing_inc
+
+.trim_trailing_loop:
+    cmp rdi,        rbx
+    jl  .trim_done
+    cmp byte [rdi], ' '
+    jne .trim_done
+    dec rdi
+    jmp .trim_trailing_loop
+
+.trim_done:
+    inc rdi
+
+.no_trailing_inc:
+    inc rdi
+
+.no_trailing:
+    mov rdx, rdi
+    sub rdx, rbx ; New length
+
+    pop rax
+    pop rcx
+    pop rdi
+    pop rsi
+    pop rbx
+    ret
+
+
+print_uint32:
+    mov eax, edi ; function arg
+
+    mov  ecx, 0xa ; base 10
+    push rcx      ; ASCII newline '\n' = 0xa = base
+    mov  rsi, rsp
+    sub  rsp, 16  ; not needed on 64-bit Linux, the red-zone is big enough.  Change the LEA below if you remove this.
+
+;;; rsi is pointing at '\n' on the stack, with 16B of "allocated" space below that.
+.toascii_digit: ; do {
+    xor edx, edx
+    div ecx      ; edx=remainder = low digit = 0..9.  eax/=10
+                                 ;; DIV IS SLOW.  use a multiplicative inverse if performance is relevant.
+    add edx,   '0'
+    dec rsi        ; store digits in MSD-first printing order, working backwards from the end of the string
+    mov [rsi], dl
+
+    test eax, eax       ; } while(x);
+    jnz  .toascii_digit
+;;; rsi points to the first digit
+
+
+    mov     eax, 1            ; __NR_write from /usr/include/asm/unistd_64.h
+    mov     edi, 1            ; fd = STDOUT_FILENO
+    ; pointer already in RSI    ; buf = last digit stored = most significant
+    lea     edx, [rsp+16 + 1] ; yes, it's safe to truncate pointers before subtracting to find length.
+    sub     edx, esi          ; RDX = length = end-start, including the \n
+    syscall                   ; write(1, string /*RSI*/,  digits + 1)
+
+    add rsp, 24 ; (in 32-bit: add esp,20) undo the push and the buffer reservation
+    ret
