@@ -1,7 +1,7 @@
 bits    64
 
 section .data
-    buf_size equ 2
+    buf_size equ 1
     buffer times buf_size db 0
     env_src db 'SRC=',0
     env_dst db 'DST=',0
@@ -86,6 +86,10 @@ found_dst:
     js  close_src
     mov [dst_fd], rax
 
+    xor r15, r15
+
+
+    mov r9, 0 ; Previous char (0 - non-space, 1 - space)
 copy_loop:
     ; Читать из src_fd в buffer
     mov rax, 0        ; sys_read
@@ -113,6 +117,52 @@ copy_loop:
     cmp rbx, rcx
     jge .end_words
 
+
+    test rbx,       rbx
+    jnz  .next
+    cmp  byte[rsi], ' '
+    je   .next1
+    
+    cmp byte[rsi], 0x0A
+    jne .next
+    
+.next1:
+
+    test r15, r15
+    je   .next
+
+    push rsi
+    push rcx
+
+    mov byte[tmp], ' '
+    mov rax,       1
+    mov rdi,       [dst_fd]
+    mov rsi,       tmp
+    mov rdx,       1
+    syscall
+
+     ; Записать длину слова (print_int_to_buf)
+    mov  edi, r15d        ; число в edi
+    call print_int_to_buf
+    ; eax = длина числа, rsi = указатель на строку числа
+    mov  rax, 1           ; sys_write
+    mov  rdi, [dst_fd]
+    mov  rdx, rax         ; длина числа
+    syscall
+
+    mov byte[tmp], ' '
+    mov rax,       1
+    mov rdi,       [dst_fd]
+    mov rsi,       tmp
+    mov rdx,       1
+    syscall
+    pop rcx
+    pop rsi
+
+    xor r15, r15
+
+
+.next:
     ; Пропустить не-слова (разделители)
 .skip_nonword:
     cmp rbx, rcx
@@ -146,7 +196,7 @@ copy_loop:
     ; Найти конец слова
 .find_word_end:
     cmp rbx, rcx
-    jge .copy_word
+    jge .copy_word_end
     mov al,  [rsi + rbx]
     cmp al,  ' '
     je  .copy_word
@@ -155,11 +205,31 @@ copy_loop:
     inc rbx
     jmp .find_word_end
 
+.copy_word_end:
+    mov r14, rbx ; r14 = конец слова (не включая)
+    mov r10, r14
+    sub r10, r8  ; r10 = длина слова
+
+
+    push rsi
+    
+    mov  rax, 1             ; sys_write
+    mov  rdi, [dst_fd]
+    lea  rsi, [buffer + r8]
+    mov  rdx, r10           ; длина слова
+    push rcx
+    syscall
+    pop  rcx
+    pop  rsi
+    add  r15, r10
+    jmp  .end_words
+    
+
 
 
 .copy_word:
-    mov r9,  rbx ; r9 = конец слова (не включая)
-    mov r10, r9
+    mov r14, rbx ; r14 = конец слова (не включая)
+    mov r10, r14
     sub r10, r8  ; r10 = длина слова
 
 
@@ -181,7 +251,7 @@ copy_loop:
     mov rdx,       1
     syscall
 
-
+    add  r10, r15
     ; Записать длину слова (print_int_to_buf)
     mov  edi, r10d        ; число в edi
     call print_int_to_buf
@@ -202,6 +272,7 @@ copy_loop:
     pop rcx
     pop rsi
     
+    xor r15, r15
 
     jmp .process_words
 
@@ -237,19 +308,7 @@ trim_spaces:
     mov rdi, rbx ; Destination pointer
     xor rcx, rcx ; Source index
     xor rax, rax ; Current char
-    mov r9,  0   ; Previous char (0 - non-space, 1 - space)
-
-    ; Skip leading spaces
-.skip_leading:
-    cmp rcx, rdx
-    jge .end_leading
-    mov al,  [rsi + rcx]
-    cmp al,  ' '
-    jne .end_leading
-    inc rcx
-    jmp .skip_leading
-
-.end_leading:
+    
 
     ; Main processing loop
 .loop:
