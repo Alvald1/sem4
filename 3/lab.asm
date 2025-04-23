@@ -1,10 +1,11 @@
 bits    64
 
 section .data
-    buf_size equ 64
+    buf_size equ 2
     buffer times buf_size db 0
     env_src db 'SRC=',0
     env_dst db 'DST=',0
+    tmp     db 0
 
 section .bss
     src_fd  resq 1
@@ -101,15 +102,111 @@ copy_loop:
     mov  rdx, r8     ; rdx = длина прочитанного
     call trim_spaces ; на выходе: rdx = новая длина
 
-    ; Просто записать в dst_fd из buffer
-    mov rax, 1        ; sys_write
-    mov rdi, [dst_fd]
-    mov rsi, buffer
-    mov rdx, rdx      ; длина после trim_spaces
-    syscall
-    cmp rax, 0
-    jl  close_all
+    
 
+    ; === Новый цикл: обработка слов ===
+    mov rsi, buffer ; rsi = начало буфера (источник)
+    mov rcx, rdx    ; rcx = длина буфера
+    xor rbx, rbx    ; rbx = текущий индекс в буфере
+
+.process_words:
+    cmp rbx, rcx
+    jge .end_words
+
+    ; Пропустить не-слова (разделители)
+.skip_nonword:
+    cmp rbx, rcx
+    jge .end_words
+    mov al,  [rsi + rbx]
+    cmp al,  ' '
+    je  .inc_bx
+    cmp al,  0x0A
+    je  .inc_nl
+    jmp .word_start_found
+
+.inc_nl:
+    push rsi
+    mov  byte[tmp], 0x0A
+    mov  rax,       1
+    mov  rdi,       [dst_fd]
+    mov  rsi,       tmp
+    mov  rdx,       1
+    push rcx
+    syscall
+    pop  rcx
+    pop  rsi
+
+.inc_bx:
+    inc rbx
+    jmp .skip_nonword
+
+.word_start_found:
+    mov r8, rbx ; r8 = начало слова
+
+    ; Найти конец слова
+.find_word_end:
+    cmp rbx, rcx
+    jge .copy_word
+    mov al,  [rsi + rbx]
+    cmp al,  ' '
+    je  .copy_word
+    cmp al,  0x0A
+    je  .copy_word
+    inc rbx
+    jmp .find_word_end
+
+
+
+.copy_word:
+    mov r9,  rbx ; r9 = конец слова (не включая)
+    mov r10, r9
+    sub r10, r8  ; r10 = длина слова
+
+
+    push rsi
+    
+    mov  rax, 1             ; sys_write
+    mov  rdi, [dst_fd]
+    lea  rsi, [buffer + r8]
+    mov  rdx, r10           ; длина слова
+    push rcx
+    syscall
+
+
+    ; Записать пробел после числа
+    mov byte[tmp], ' '
+    mov rax,       1
+    mov rdi,       [dst_fd]
+    mov rsi,       tmp
+    mov rdx,       1
+    syscall
+
+
+    ; Записать длину слова (print_int_to_buf)
+    mov  edi, r10d        ; число в edi
+    call print_int_to_buf
+    ; eax = длина числа, rsi = указатель на строку числа
+    mov  rax, 1           ; sys_write
+    mov  rdi, [dst_fd]
+    mov  rdx, rax         ; длина числа
+    syscall
+    
+
+    ; Записать пробел после числа
+    mov byte[tmp], ' '
+    mov rax,       1
+    mov rdi,       [dst_fd]
+    mov rsi,       tmp
+    mov rdx,       1
+    syscall
+    pop rcx
+    pop rsi
+    
+
+    jmp .process_words
+
+.end_words:
+    ; После обработки слов переходим к следующей порции данных
     jmp copy_loop
 
 close_all:
@@ -236,34 +333,36 @@ trim_spaces:
     ret
 
 
-print_uint32:
-    mov eax, edi ; function arg
+; edi = число
+; возвращает: eax = длина строки, rsi = число 
+print_int_to_buf:
+    push rax
+    push rcx
+    push rdx
+    push rdi
 
-    mov  ecx, 0xa ; base 10
-    push rcx      ; ASCII newline '\n' = 0xa = base
-    mov  rsi, rsp
-    sub  rsp, 16  ; not needed on 64-bit Linux, the red-zone is big enough.  Change the LEA below if you remove this.
+    mov eax, edi ; число в eax
 
-;;; rsi is pointing at '\n' on the stack, with 16B of "allocated" space below that.
-.toascii_digit: ; do {
+    mov ecx, 10  ; делитель
+    mov rsi, rsp
+
+.print_digit:
     xor edx, edx
-    div ecx      ; edx=remainder = low digit = 0..9.  eax/=10
-                                 ;; DIV IS SLOW.  use a multiplicative inverse if performance is relevant.
+    div ecx      ; rdx = остаток
+
     add edx,   '0'
-    dec rsi        ; store digits in MSD-first printing order, working backwards from the end of the string
+    dec rsi
     mov [rsi], dl
+    
+    test eax, eax
+    jnz  .print_digit
 
-    test eax, eax       ; } while(x);
-    jnz  .toascii_digit
-;;; rsi points to the first digit
+    lea eax, [rsp + 1]
+    sub eax, esi       ; длина числа
+    
 
-
-    mov     eax, 1            ; __NR_write from /usr/include/asm/unistd_64.h
-    mov     edi, 1            ; fd = STDOUT_FILENO
-    ; pointer already in RSI    ; buf = last digit stored = most significant
-    lea     edx, [rsp+16 + 1] ; yes, it's safe to truncate pointers before subtracting to find length.
-    sub     edx, esi          ; RDX = length = end-start, including the \n
-    syscall                   ; write(1, string /*RSI*/,  digits + 1)
-
-    add rsp, 24 ; (in 32-bit: add esp,20) undo the push and the buffer reservation
+    pop rdi
+    pop rdx
+    pop rcx
+    pop rax
     ret
