@@ -147,7 +147,7 @@ copy_loop:
     ; eax = длина числа, rsi = указатель на строку числа
     mov  rax, 1           ; sys_write
     mov  rdi, [dst_fd]
-    mov  rdx, rax         ; длина числа
+    mov  rdx, r11         ; длина числа
     syscall
 
     mov byte[tmp], ' '
@@ -258,7 +258,7 @@ copy_loop:
     ; eax = длина числа, rsi = указатель на строку числа
     mov  rax, 1           ; sys_write
     mov  rdi, [dst_fd]
-    mov  rdx, rax         ; длина числа
+    mov  rdx, r11         ; длина числа
     syscall
     
 
@@ -427,9 +427,10 @@ print_int_to_buf:
     test eax, eax
     jnz  .print_digit
 
-    lea eax, [rsp + 1]
-    sub eax, esi       ; длина числа
+    lea eax, [rsp]
+    sub eax, esi   ; длина числа
     
+    mov r11, rax
 
     pop rdi
     pop rdx
