@@ -123,7 +123,7 @@ copy_loop:
     cmp  byte[rsi], ' '
     je   .next1
     
-    cmp byte[rsi], 0x0A
+    cmp byte[rsi], 10
     jne .next
     
 .next1:
@@ -144,7 +144,7 @@ copy_loop:
      ; Записать длину слова (print_int_to_buf)
     mov  edi, r15d        ; число в edi
     call print_int_to_buf
-    ; eax = длина числа, rsi = указатель на строку числа
+    ; r11 = длина числа, rsi = указатель на строку числа
     mov  rax, 1           ; sys_write
     mov  rdi, [dst_fd]
     mov  rdx, r11         ; длина числа
@@ -170,13 +170,13 @@ copy_loop:
     mov al,  [rsi + rbx]
     cmp al,  ' '
     je  .inc_bx
-    cmp al,  0x0A
+    cmp al,  10
     je  .inc_nl
     jmp .word_start_found
 
 .inc_nl:
     push rsi
-    mov  byte[tmp], 0x0A
+    mov  byte[tmp], 10
     mov  rax,       1
     mov  rdi,       [dst_fd]
     mov  rsi,       tmp
@@ -200,7 +200,7 @@ copy_loop:
     mov al,  [rsi + rbx]
     cmp al,  ' '
     je  .copy_word
-    cmp al,  0x0A
+    cmp al,  10
     je  .copy_word
     inc rbx
     jmp .find_word_end
@@ -255,7 +255,7 @@ copy_loop:
     ; Записать длину слова (print_int_to_buf)
     mov  edi, r10d        ; число в edi
     call print_int_to_buf
-    ; eax = длина числа, rsi = указатель на строку числа
+    ; r11 = длина числа, rsi = указатель на строку числа
     mov  rax, 1           ; sys_write
     mov  rdi, [dst_fd]
     mov  rdx, r11         ; длина числа
@@ -317,13 +317,13 @@ trim_spaces:
     mov al,  [rsi + rcx]
 
     ; Check for newline character
-    cmp al, 0x0A        ; '\n'
+    cmp al, 10          ; '\n'
     je  .handle_newline
 
     cmp al, ' '
     je  .not_space2
 
-    cmp al, 0x09
+    cmp al, 9
     jne .not_space
     mov al, ' '
 .not_space2:
@@ -348,7 +348,7 @@ trim_spaces:
     mov al,  [rsi + rcx]
     cmp al,  ' '
     je  .skip_after_newline
-    cmp al,  0x09
+    cmp al,  9
     je  .skip_after_newline
     dec rcx                 ; Re-process the non-space character
     jmp .next
@@ -371,7 +371,7 @@ trim_spaces:
     dec rdi
     cmp byte [rdi], ' '
     je  .trim_trailing_loop
-    cmp byte [rdi], 0x09
+    cmp byte [rdi], 9
     jne .no_trailing_inc
 
 .trim_trailing_loop:
@@ -379,7 +379,7 @@ trim_spaces:
     jl  .trim_done
     cmp byte [rdi], ' '
     je  .m1
-    cmp byte [rdi], 0x09
+    cmp byte [rdi], 9
     jne .trim_done
 .m1:
     dec rdi
@@ -404,7 +404,7 @@ trim_spaces:
 
 
 ; edi = число
-; возвращает: eax = длина строки, rsi = число 
+; возвращает: r11 = длина строки, rsi = число 
 print_int_to_buf:
     push rax
     push rcx
