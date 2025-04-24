@@ -321,8 +321,12 @@ trim_spaces:
     je  .handle_newline
 
     cmp al, ' '
-    jne .not_space
+    je  .not_space2
 
+    cmp al, 0x09
+    jne .not_space
+    mov al, ' '
+.not_space2:
     ; Handle space character
     cmp r9,    1
     je  .skip_copy
@@ -344,6 +348,8 @@ trim_spaces:
     mov al,  [rsi + rcx]
     cmp al,  ' '
     je  .skip_after_newline
+    cmp al,  0x09
+    je  .skip_after_newline
     dec rcx                 ; Re-process the non-space character
     jmp .next
 
@@ -364,13 +370,18 @@ trim_spaces:
     je  .no_trailing
     dec rdi
     cmp byte [rdi], ' '
+    je  .trim_trailing_loop
+    cmp byte [rdi], 0x09
     jne .no_trailing_inc
 
 .trim_trailing_loop:
     cmp rdi,        rbx
     jl  .trim_done
     cmp byte [rdi], ' '
+    je  .m1
+    cmp byte [rdi], 0x09
     jne .trim_done
+.m1:
     dec rdi
     jmp .trim_trailing_loop
 
