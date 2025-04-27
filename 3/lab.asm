@@ -1,7 +1,7 @@
 bits    64
 
 section .data
-    buf_size equ 1
+    buf_size equ 10
     buffer times buf_size db 0
     env_src db 'SRC=',0
     env_dst db 'DST=',0
@@ -117,6 +117,7 @@ copy_loop:
     cmp rbx, rcx
     jge .end_words
 
+    xor r14, r14
 
     test rbx,       rbx
     jnz  .next
@@ -125,6 +126,7 @@ copy_loop:
     
     cmp byte[rsi], 10
     jne .next
+    mov r14,       1
     
 .next1:
 
@@ -150,12 +152,16 @@ copy_loop:
     mov  rdx, r11         ; длина числа
     syscall
 
+    test r14, r14
+    jnz  .m2
+
     mov byte[tmp], ' '
     mov rax,       1
     mov rdi,       [dst_fd]
     mov rsi,       tmp
     mov rdx,       1
     syscall
+.m2:
     pop rcx
     pop rsi
 
@@ -206,8 +212,7 @@ copy_loop:
     jmp .find_word_end
 
 .copy_word_end:
-    mov r14, rbx ; r14 = конец слова (не включая)
-    mov r10, r14
+    mov r10, rbx ; r10 = конец слова (не включая)
     sub r10, r8  ; r10 = длина слова
 
 
@@ -228,18 +233,18 @@ copy_loop:
 
 
 .copy_word:
-    mov r14, rbx ; r14 = конец слова (не включая)
-    mov r10, r14
+    mov r10, rbx ; r10 = конец слова (не включая)
     sub r10, r8  ; r10 = длина слова
 
 
     push rsi
-    
-    mov  rax, 1             ; sys_write
-    mov  rdi, [dst_fd]
-    lea  rsi, [buffer + r8]
-    mov  rdx, r10           ; длина слова
     push rcx
+    
+    mov rax, 1             ; sys_write
+    mov rdi, [dst_fd]
+    lea rsi, [buffer + r8]
+    mov rdx, r10           ; длина слова
+   
     syscall
 
 
@@ -260,7 +265,16 @@ copy_loop:
     mov  rdi, [dst_fd]
     mov  rdx, r11         ; длина числа
     syscall
+
     
+    pop rcx
+    pop rsi
+
+    cmp byte[rsi + rbx], 10
+    je  .m3
+
+    push rsi
+    push rcx
 
     ; Записать пробел после числа
     mov byte[tmp], ' '
@@ -269,8 +283,11 @@ copy_loop:
     mov rsi,       tmp
     mov rdx,       1
     syscall
+    
     pop rcx
     pop rsi
+
+ .m3:   
     
     xor r15, r15
 
