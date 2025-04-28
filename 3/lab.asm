@@ -126,9 +126,9 @@ copy_loop:
     
     cmp byte[rsi], 10
     jne .next
-    mov r14,       1
     
 .next1:
+    mov r14, 1
 
     test r15, r15
     je   .next
