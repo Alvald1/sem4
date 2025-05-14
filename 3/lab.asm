@@ -274,6 +274,9 @@ copy_loop:
     cmp byte[rsi + rbx], 10
     je  .m3
 
+    cmp byte[rsi + rbx + 1], 10
+    je  .m3
+
     push rsi
     push rcx
 
