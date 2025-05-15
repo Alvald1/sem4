@@ -1,0 +1,7 @@
+obj
+test*
+bin
+.gdb_history
+out
+*.o
+lab
