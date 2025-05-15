@@ -1,32 +1,33 @@
 bits    64
 
 ; arshx = sum(((-1)^n*(2n)!*x^(2n+1))/(4^n*(n!)^2*(2n+1)))
+; Вычисление арксинуса гиперболического через ряд Тейлора
 
 section .data
-    input_msg      db "Input x (|x| < 1): ", 0
-    float_format   db "%f", 0
-    err_inp_msg    db "Error: invalid input!", 10, 0
-    out_lib_msg    db "lib asinhf(x): %f", 10, 0
-    out_row_msg    db "series my_arsh(x): %f", 10, 0
-    flt_one        dd 1.0
-    flt_minus_one  dd -1.0
-    float_abs_mask dd 0x7fffffff
-    debug_msg      db "n=%d, ratio=%f, a_n=%f, sum=%f", 10, 0
-    output_file    dq 0
-    write_mode     db "w", 0
-    file_handle    dq 0
-    argc           dq 0
-    argv           dq 0
-    eps_prompt     db "Input epsilon (e.g. 1e-6): ", 0
-    user_epsilon   dd 0.0
-    err_file_msg   db "Error: output filename required as argument", 10, 0
-    err_open_msg   db "Error: cannot open output file", 10, 0
-    err_write_msg  db "Error: failed to write to file", 10, 0
+    input_msg      db "Input x (|x| < 1): ", 0         ; Сообщение для ввода x
+    float_format   db "%f", 0                          ; Формат для scanf/printf
+    err_inp_msg    db "Error: invalid input!", 10, 0   ; Сообщение об ошибке ввода
+    out_lib_msg    db "lib asinhf(x): %f", 10, 0       ; Сообщение для вывода значения из библиотеки
+    out_row_msg    db "series my_arsh(x): %f", 10, 0   ; Сообщение для вывода значения по ряду
+    flt_one        dd 1.0                              ; Константа 1.0 (float)
+    flt_minus_one  dd -1.0                             ; Константа -1.0 (float)
+    float_abs_mask dd 0x7fffffff                       ; Маска для получения модуля float
+    debug_msg      db "n=%d, ratio=%f, a_n=%f, sum=%f", 10, 0 ; Отладочное сообщение для файла
+    output_file    dq 0                                ; Имя выходного файла
+    write_mode     db "w", 0                           ; Режим открытия файла (write)
+    file_handle    dq 0                                ; Дескриптор файла
+    argc           dq 0                                ; Количество аргументов командной строки
+    argv           dq 0                                ; Аргументы командной строки
+    eps_prompt     db "Input epsilon (e.g. 1e-6): ", 0 ; Сообщение для ввода эпсилон
+    user_epsilon   dd 0.0                              ; Значение эпсилон, введённое пользователем
+    err_file_msg   db "Error: output filename required as argument", 10, 0 ; Нет имени файла
+    err_open_msg   db "Error: cannot open output file", 10, 0              ; Не удалось открыть файл
+    err_write_msg  db "Error: failed to write to file", 10, 0              ; Не удалось записать в файл
 
 section .text
     global main
     extern printf, scanf, asinhf, fopen, fprintf, fclose
-    extern getchar ; добавлено для очистки буфера
+    extern getchar ; используется для очистки буфера ввода
 
 main:
     push rbp
@@ -37,21 +38,21 @@ main:
     mov [argv], rsi
 
     cmp qword [argc], 2
-    jge filename_provided
+    jge arg_filename_ok      ; Проверяем, что передан аргумент с именем файла
 
-    mov  rdi, err_file_msg
+    mov  rdi, err_file_msg   ; Если нет — выводим ошибку
     xor  eax, eax
     call printf
     mov  eax, 1
     leave
     ret
 
-filename_provided:
+arg_filename_ok:
     mov rax,           [argv]
-    mov rdi,           [rax + 8]
+    mov rdi,           [rax + 8]      ; Получаем имя выходного файла
     mov [output_file], rdi
 
-get_epsilon:
+prompt_epsilon:
     mov  rdi, eps_prompt
     xor  eax, eax
     call printf
@@ -62,33 +63,33 @@ get_epsilon:
     call scanf
 
     cmp eax, 1
-    je  open_file
+    je  open_output_file      ; Если успешно считали — идём дальше
 
     ; Очистка буфера после неудачного ввода
-.clear_input_buffer:
+.clear_stdin_buffer:
     call getchar
     cmp  al, 10              ; '\n'
-    jne  .clear_input_buffer
+    jne  .clear_stdin_buffer
 
-    jmp get_epsilon
+    jmp prompt_epsilon       ; Повторяем ввод
 
-open_file:
+open_output_file:
     mov  rdi,           [output_file]
     mov  rsi,           write_mode
     call fopen
     mov  [file_handle], rax
 
     test rax, rax
-    jnz  file_opened
+    jnz  prompt_input_x      ; Если файл открыт — продолжаем
 
-    mov  rdi, err_open_msg
+    mov  rdi, err_open_msg   ; Ошибка открытия файла
     xor  eax, eax
     call printf
     mov  eax, 1
     leave
     ret
 
-file_opened:
+prompt_input_x:
     mov  rdi, input_msg
     xor  eax, eax
     call printf
@@ -99,7 +100,7 @@ file_opened:
     call scanf
 
     cmp eax, 1
-    jne .input_fail
+    jne .input_invalid       ; Если не число — ошибка
 
     ; Проверка |x| < 1
     movss  xmm0, [rbp - 4]
@@ -109,25 +110,25 @@ file_opened:
     andps  xmm1, xmm2
     movss  xmm3, [flt_one]
     comiss xmm1, xmm3
-    jb     lib_arsh
+    jb     calc_lib_arsh     ; Если модуль меньше 1 — продолжаем
 
     ; Если не прошло — вывести ошибку и повторить ввод
     mov  rdi, err_inp_msg
     xor  eax, eax
     call printf
 
-.input_fail:
+.input_invalid:
     ; Очистка буфера после неудачного ввода
-.clear_input_buffer:
+.clear_stdin_buffer:
     call getchar
     cmp  al, 10              ; '\n'
-    jne  .clear_input_buffer
+    jne  .clear_stdin_buffer
 
-    jmp file_opened
+    jmp prompt_input_x       ; Повторяем ввод
 
-lib_arsh:
+calc_lib_arsh:
     movss xmm0, [rbp - 4]
-    call  asinhf
+    call  asinhf             ; Вызываем библиотечную функцию asinhf
 
     cvtss2sd xmm0, xmm0
     mov      rdi,  out_lib_msg
@@ -135,7 +136,7 @@ lib_arsh:
     call     printf
 
     movss xmm0, [rbp - 4]
-    call  my_arsh
+    call  my_arsh            ; Вызываем свою функцию через ряд
 
     cvtss2sd xmm0, xmm0
     mov      rdi,  out_row_msg
@@ -152,12 +153,12 @@ my_arsh:
     sub  rsp, 32
 
     movss xmm1, xmm0 ; x
-    movss xmm2, xmm0 ; term = x
-    movss xmm3, xmm0 ; sum = x
+    movss xmm2, xmm0 ; term = x (первый член ряда)
+    movss xmm3, xmm0 ; sum = x (сумма ряда)
 
     xor rbx, rbx ; n = 0
 
-next_term:
+series_next_term:
     ; term_{n+1} = term_n * (-1) * (2n+1)^2 * x^2 / [2*(n+1)*(2n+3)]
     mov rax, rbx
     add rax, rax ; 2n
@@ -185,25 +186,25 @@ next_term:
     addss xmm11, xmm11     ; 2.0
 
     mulss xmm11, xmm7 ; 2*(n+1)
-    mulss xmm11, xmm8 ; 2*(n+1)*(2n+3)
+    mulss xmm11, xmm8 ; 2*(н+1)*(2н+3)
 
     divss xmm10, xmm11 ; num/den
 
     mulss xmm2, xmm10 ; term = term * ratio
 
-    ; Проверка точности (|term| <= eps) — если да, выходим
+    ; Проверка точности (|term| <= eps) — если да, выходим из цикла
     movss  xmm12, xmm2
     mov    eax,   [float_abs_mask]
     movd   xmm13, eax
     andps  xmm12, xmm13
     comiss xmm12, [user_epsilon]
-    jbe    finish_series
+    jbe    series_finish
 
     addss xmm3, xmm2 ; sum += term
 
     inc rbx ; n++
 
-    ; Сохраняем для отладки
+    ; Сохраняем для отладки (запись в файл)
     push   rax
     push   rbx
     sub    rsp,        16 * 4
@@ -230,20 +231,20 @@ next_term:
     pop    rbx
     pop    rax
 
-    jmp next_term
+    jmp series_next_term
 
-finish_series:
+series_finish:
     mov  rdi, [file_handle]
     call fclose
 
     test eax, eax
-    jz   file_closed
+    jz   output_file_closed
 
     mov  rdi, err_write_msg
     xor  eax, eax
     call printf
 
-file_closed:
+output_file_closed:
     movss xmm0, xmm3
     leave
     ret

@@ -5,3 +5,5 @@ bin
 out
 *.o
 lab
+*.swp
+main.asm
