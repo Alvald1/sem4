@@ -4,29 +4,29 @@ bits    64
 ; Вычисление арксинуса гиперболического через ряд Тейлора
 
 section .data
-    input_msg      db "Input x (|x| < 1): ", 0         ; Сообщение для ввода x
-    float_format   db "%f", 0                          ; Формат для scanf/printf
-    err_inp_msg    db "Error: invalid input!", 10, 0   ; Сообщение об ошибке ввода
-    out_lib_msg    db "lib asinhf(x): %f", 10, 0       ; Сообщение для вывода значения из библиотеки
-    out_row_msg    db "series my_arsh(x): %f", 10, 0   ; Сообщение для вывода значения по ряду
-    flt_one        dd 1.0                              ; Константа 1.0 (float)
-    flt_minus_one  dd -1.0                             ; Константа -1.0 (float)
-    float_abs_mask dd 0x7fffffff                       ; Маска для получения модуля float
-    debug_msg      db "n=%d, ratio=%f, a_n=%f, sum=%f", 10, 0 ; Отладочное сообщение для файла
-    output_file    dq 0                                ; Имя выходного файла
-    write_mode     db "w", 0                           ; Режим открытия файла (write)
-    file_handle    dq 0                                ; Дескриптор файла
-    argc           dq 0                                ; Количество аргументов командной строки
-    argv           dq 0                                ; Аргументы командной строки
-    eps_prompt     db "Input epsilon (e.g. 1e-6): ", 0 ; Сообщение для ввода эпсилон
-    user_epsilon   dd 0.0                              ; Значение эпсилон, введённое пользователем
-    err_file_msg   db "Error: output filename required as argument", 10, 0 ; Нет имени файла
-    err_open_msg   db "Error: cannot open output file", 10, 0              ; Не удалось открыть файл
-    err_write_msg  db "Error: failed to write to file", 10, 0              ; Не удалось записать в файл
+    input_msg           db "Input x (|x| < 1): ", 0                             ; Сообщение для ввода x
+    float_format        db "%f", 0                                              ; Формат для scanf/printf
+    err_inp_msg         db "Error: invalid input!", 10, 0                       ; Сообщение об ошибке ввода
+    out_row_precise_fmt db "series my_arsh(x): %.*f", 10, 0
+    out_lib_precise_fmt db "lib asinhf(x): %.*f", 10, 0
+    debug_precise_msg   db "n=%d, ratio=%.*f, a_n=%.*f, sum=%.*f", 10, 0
+    flt_one             dd 1.0                                                  ; Константа 1.0 (float)
+    flt_minus_one       dd -1.0                                                 ; Константа -1.0 (float)
+    float_abs_mask      dd 0x7fffffff                                           ; Маска для получения модуля float
+    output_file         dq 0                                                    ; Имя выходного файла
+    write_mode          db "w", 0                                               ; Режим открытия файла (write)
+    file_handle         dq 0                                                    ; Дескриптор файла
+    argc                dq 0                                                    ; Количество аргументов командной строки
+    argv                dq 0                                                    ; Аргументы командной строки
+    eps_prompt          db "Input epsilon (e.g. 1e-6): ", 0                     ; Сообщение для ввода эпсилон
+    user_epsilon        dd 0.0                                                  ; Значение эпсилон, введённое пользователем
+    err_file_msg        db "Error: output filename required as argument", 10, 0 ; Нет имени файла
+    err_open_msg        db "Error: cannot open output file", 10, 0              ; Не удалось открыть файл
+    err_write_msg       db "Error: failed to write to file", 10, 0              ; Не удалось записать в файл
 
 section .text
     global main
-    extern printf, scanf, asinhf, fopen, fprintf, fclose
+    extern printf, scanf, asinhf, fopen, fprintf, fclose, log10f, floorf, sprintf
     extern getchar ; используется для очистки буфера ввода
 
 main:
@@ -38,9 +38,9 @@ main:
     mov [argv], rsi
 
     cmp qword [argc], 2
-    jge arg_filename_ok      ; Проверяем, что передан аргумент с именем файла
+    jge arg_filename_ok ; Проверяем, что передан аргумент с именем файла
 
-    mov  rdi, err_file_msg   ; Если нет — выводим ошибку
+    mov  rdi, err_file_msg ; Если нет — выводим ошибку
     xor  eax, eax
     call printf
     mov  eax, 1
@@ -49,7 +49,7 @@ main:
 
 arg_filename_ok:
     mov rax,           [argv]
-    mov rdi,           [rax + 8]      ; Получаем имя выходного файла
+    mov rdi,           [rax + 8] ; Получаем имя выходного файла
     mov [output_file], rdi
 
 prompt_epsilon:
@@ -63,15 +63,30 @@ prompt_epsilon:
     call scanf
 
     cmp eax, 1
-    je  open_output_file      ; Если успешно считали — идём дальше
+    jne .input_invalid_epsilon
 
+    ; --- вычисление количества знаков после запятой ---
+    movss    xmm0, [user_epsilon] ; xmm0 = eps
+    call     log10f               ; xmm0 = log10f(eps)
+    xorps    xmm1, xmm1
+    subss    xmm1, xmm0           ; xmm1 = -log10f(eps)
+    movss    xmm0, xmm1           ; xmm0 = -log10f(eps)
+    call     floorf               ; xmm0 = floorf(-log10f(eps))
+    cvtss2si r15d, xmm0           ; int(first_significant_digit)
+    cmp      r15d, 0
+    jge      .r15d_ok
+    mov      r15d, 0
+.r15d_ok:
+    jmp open_output_file
+
+.input_invalid_epsilon:
     ; Очистка буфера после неудачного ввода
 .clear_stdin_buffer:
     call getchar
     cmp  al, 10              ; '\n'
     jne  .clear_stdin_buffer
 
-    jmp prompt_epsilon       ; Повторяем ввод
+    jmp prompt_epsilon ; Повторяем ввод
 
 open_output_file:
     mov  rdi,           [output_file]
@@ -80,9 +95,9 @@ open_output_file:
     mov  [file_handle], rax
 
     test rax, rax
-    jnz  prompt_input_x      ; Если файл открыт — продолжаем
+    jnz  prompt_input_x ; Если файл открыт — продолжаем
 
-    mov  rdi, err_open_msg   ; Ошибка открытия файла
+    mov  rdi, err_open_msg ; Ошибка открытия файла
     xor  eax, eax
     call printf
     mov  eax, 1
@@ -100,7 +115,7 @@ prompt_input_x:
     call scanf
 
     cmp eax, 1
-    jne .input_invalid       ; Если не число — ошибка
+    jne .input_invalid ; Если не число — ошибка
 
     ; Проверка |x| < 1
     movss  xmm0, [rbp - 4]
@@ -110,7 +125,7 @@ prompt_input_x:
     andps  xmm1, xmm2
     movss  xmm3, [flt_one]
     comiss xmm1, xmm3
-    jb     calc_lib_arsh     ; Если модуль меньше 1 — продолжаем
+    jb     calc_lib_arsh          ; Если модуль меньше 1 — продолжаем
 
     ; Если не прошло — вывести ошибку и повторить ввод
     mov  rdi, err_inp_msg
@@ -124,24 +139,30 @@ prompt_input_x:
     cmp  al, 10              ; '\n'
     jne  .clear_stdin_buffer
 
-    jmp prompt_input_x       ; Повторяем ввод
+    jmp prompt_input_x ; Повторяем ввод
 
 calc_lib_arsh:
     movss xmm0, [rbp - 4]
-    call  asinhf             ; Вызываем библиотечную функцию asinhf
+    call  asinhf          ; Вызываем библиотечную функцию asinhf
 
     cvtss2sd xmm0, xmm0
-    mov      rdi,  out_lib_msg
-    mov      eax,  1
+    mov      rdi,  out_lib_precise_fmt
+    mov      esi,  r15d
+    movq     xmm1, xmm0
+    mov      eax,  2
     call     printf
 
     movss xmm0, [rbp - 4]
-    call  my_arsh            ; Вызываем свою функцию через ряд
+    call  my_arsh         ; Вызываем свою функцию через ряд
 
     cvtss2sd xmm0, xmm0
-    mov      rdi,  out_row_msg
-    mov      eax,  1
-    call     printf
+
+    ; Выводим с нужной точностью
+    mov  rdi,  out_row_precise_fmt ; строка формата
+    mov  esi,  r15d                ; точность после запятой
+    movq xmm1, xmm0                ; значение (double)
+    mov  eax,  2                   ; количество xmm аргументов
+    call printf
 
     xor eax, eax
     leave
@@ -217,10 +238,16 @@ series_next_term:
     cvtss2sd xmm1, xmm2  ; term
     cvtss2sd xmm2, xmm3  ; sum
 
-    mov  rdi, [file_handle]
-    mov  rsi, debug_msg
-    mov  rdx, rbx
-    mov  eax, 2
+    mov  rdi,  [file_handle]
+    mov  rsi,  debug_precise_msg
+    mov  rdx,  rbx
+    mov  rcx,  r15
+    movq xmm3, xmm0              ; ratio
+    mov  r8d,  r15d
+    movq xmm4, xmm1              ; term
+    mov  r9d,  r15d
+    movq xmm5, xmm2              ; sum
+    mov  eax,  6                 ; 3 double args (xmm3, xmm4, xmm5)
     call fprintf
 
     movdqu xmm1,  [rsp]
