@@ -65,6 +65,12 @@ prompt_epsilon:
     cmp eax, 1
     jne .input_invalid_epsilon
 
+    ; Проверка, что epsilon > 0
+    movsd  xmm0, [user_epsilon]
+    xorpd  xmm1, xmm1
+    comisd xmm0, xmm1
+    jbe    .input_invalid_epsilon
+
     ; --- вычисление количества знаков после запятой ---
     movsd    xmm0, qword [user_epsilon]
     call     log10
@@ -80,6 +86,9 @@ prompt_epsilon:
     jmp open_output_file
 
 .input_invalid_epsilon:
+    mov  rdi, err_inp_msg
+    xor  eax, eax
+    call printf
 .clear_stdin_buffer:
     call getchar
     cmp  al, 10
