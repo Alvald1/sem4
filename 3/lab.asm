@@ -3,7 +3,7 @@ bits    64
 section .data
     buf_size equ 10
     buffer times buf_size db 0
-    out_buf_size equ 4096
+    out_buf_size equ 20
     output_buffer times out_buf_size db 0
     num_buffer    times 20 db 0           ; буфер для преобразования чисел
     env_src db 'SRC=',0
