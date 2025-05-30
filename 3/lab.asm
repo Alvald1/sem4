@@ -8,6 +8,7 @@ section .data
     env_src db 'SRC=',0
     env_dst db 'DST=',0
     tmp     db 0
+    number_buffer times 20 db 0 ; Буфер для чисел
 
 section .bss
     src_fd      resq 1
@@ -125,45 +126,65 @@ copy_loop:
 
     xor r14, r14
 
-    test rbx,       rbx
+    ; В начале буфера проверяем, завершилось ли предыдущее слово
+    test rbx, rbx
     jnz  .next
-    cmp  byte[rsi], ' '
-    je   .next1
     
-    cmp byte[rsi], 10
-    jne .next
-    
-    mov r14, 1
-    
-.next1:
-
+    ; Если есть накопленная длина слова из предыдущего буфера
     test r15, r15
     je   .next
+    
+    ; Проверяем первый символ нового буфера
+    mov al, byte[rsi]
+    cmp al, ' '
+    je  .word_ended_with_space
+    cmp al, 10
+    je  .word_ended_with_newline
+    
+    ; Если первый символ не разделитель, слово продолжается
+    jmp .next
 
+.word_ended_with_space:
     push rsi
     push rcx
 
     mov  al, ' '
     call write_byte_to_buffer
 
-     ; Записать длину слова (print_int_to_buf)
-    mov  edi, r15d              ; число в edi
+    ; Записать длину слова
+    mov  edi, r15d
     call print_int_to_buf
-    ; r11 = длина числа, rsi = указатель на строку числа
-    mov  rdx, r11               ; длина числа
+    mov  rdx, r11
     call write_string_to_buffer
+    
+    mov  al, ' '
+    call write_byte_to_buffer
+    
+    pop rcx
+    pop rsi
+    xor r15, r15
+    jmp .next
 
-    test r14, r14
-    jnz  .m2
+.word_ended_with_newline:
+    push rsi
+    push rcx
 
     mov  al, ' '
     call write_byte_to_buffer
-.m2:
+
+    ; Записать длину слова
+    mov  edi, r15d
+    call print_int_to_buf
+    mov  rdx, r11
+    call write_string_to_buffer
+    
+    mov  al, 10
+    call write_byte_to_buffer
+    
     pop rcx
     pop rsi
-
     xor r15, r15
-
+    jmp .next
 
 .next:
     ; Пропустить не-слова (разделители)
@@ -237,9 +258,9 @@ copy_loop:
     mov  al, ' '
     call write_byte_to_buffer
 
-    add  r10, r15
+    add  r15, r10
     ; Записать длину слова (print_int_to_buf)
-    mov  edi, r10d              ; число в edi
+    mov  edi, r15d              ; число в edi
     call print_int_to_buf
     ; r11 = длина числа, rsi = указатель на строку числа
     mov  rdx, r11               ; длина числа
@@ -482,7 +503,7 @@ trim_spaces:
 
 
 ; edi = число
-; возвращает: r11 = длина строки, rsi = число 
+; возвращает: r11 = длина строки, rsi = указатель на строку числа 
 print_int_to_buf:
     push rax
     push rcx
@@ -491,8 +512,9 @@ print_int_to_buf:
 
     mov eax, edi ; число в eax
 
-    mov ecx, 10  ; делитель
-    mov rsi, rsp
+    mov ecx,        10                   ; делитель
+    lea rsi,        [number_buffer + 19] ; указатель на конец буфера
+    mov byte [rsi], 0                    ; нуль-терминатор
 
 .print_digit:
     xor edx, edx
@@ -505,9 +527,9 @@ print_int_to_buf:
     test eax, eax
     jnz  .print_digit
 
-    lea eax, [rsp]
-    sub eax, esi   ; длина числа
-    
+    ; Вычисляем длину числа
+    lea rax, [number_buffer + 19]
+    sub rax, rsi
     mov r11, rax
 
     pop rdi
