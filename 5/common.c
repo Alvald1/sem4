@@ -128,3 +128,36 @@ double get_time_diff(struct timespec start, struct timespec end)
 {
     return (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
 }
+
+double gaussian_blur(const Image *input, Image *output)
+{
+    int width = input->width;
+    int height = input->height;
+    int row_size = ((width * 3 + 3) / 4) * 4;
+
+    // Инициализируем выходное изображение
+    output->width = width;
+    output->height = height;
+    output->channels = 3;
+    output->data = (uint8_t *)malloc(row_size * height);
+
+    if (!output->data)
+    {
+        printf("Ошибка выделения памяти для выходного изображения\n");
+        return 0;
+    }
+
+    struct timespec start, end;
+
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    // Автоматический выбор реализации на этапе компиляции
+#ifdef USE_ASM
+    gaussian_blur_asm_impl(input->data, output->data, width, height);
+#else
+    gaussian_blur_c_impl(input->data, output->data, width, height);
+#endif
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    return get_time_diff(start, end);
+}

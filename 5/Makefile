@@ -12,51 +12,51 @@ COMMON_OBJS = common.o
 # Цели по умолчанию
 all: gaussian-c-O0 gaussian-c-O1 gaussian-c-O2 gaussian-c-O3 gaussian-c-Ofast gaussian-asm
 
-# Компиляция общих функций
+# Компиляция общих функций (всегда с O2)
 common.o: common.c common.h
 	$(CC) -O2 -c common.c -o common.o
 
-# Компиляция C-реализаций с разными уровнями оптимизации
-gaussian-c-O0: gaussian_c.c $(COMMON_OBJS)
-	$(CC) -O0 $(CFLAGS_BASE) gaussian_c.c $(COMMON_OBJS) -o gaussian-c-O0
+# Компиляция C-реализации алгоритма с разными уровнями оптимизации
+gaussian_c_impl_O0.o: gaussian_c.c common.h
+	$(CC) -O0 -c gaussian_c.c -o gaussian_c_impl_O0.o
 
-gaussian-c-O1: gaussian_c.c $(COMMON_OBJS)
-	$(CC) -O1 $(CFLAGS_BASE) gaussian_c.c $(COMMON_OBJS) -o gaussian-c-O1
+gaussian_c_impl_O1.o: gaussian_c.c common.h
+	$(CC) -O1 -c gaussian_c.c -o gaussian_c_impl_O1.o
 
-gaussian-c-O2: gaussian_c.c $(COMMON_OBJS)
-	$(CC) -O2 $(CFLAGS_BASE) gaussian_c.c $(COMMON_OBJS) -o gaussian-c-O2
+gaussian_c_impl_O2.o: gaussian_c.c common.h
+	$(CC) -O2 -c gaussian_c.c -o gaussian_c_impl_O2.o
 
-gaussian-c-O3: gaussian_c.c $(COMMON_OBJS)
-	$(CC) -O3 $(CFLAGS_BASE) gaussian_c.c $(COMMON_OBJS) -o gaussian-c-O3
+gaussian_c_impl_O3.o: gaussian_c.c common.h
+	$(CC) -O3 -c gaussian_c.c -o gaussian_c_impl_O3.o
 
-gaussian-c-Ofast: gaussian_c.c $(COMMON_OBJS)
-	$(CC) -Ofast $(CFLAGS_BASE) gaussian_c.c $(COMMON_OBJS) -o gaussian-c-Ofast
+gaussian_c_impl_Ofast.o: gaussian_c.c common.h
+	$(CC) -O3 -ffast-math -c gaussian_c.c -o gaussian_c_impl_Ofast.o
 
-# Компиляция ASM-реализации (без оптимизаций)
+# Компиляция ассемблерного кода
 gaussian_blur.o: gaussian_blur.asm
 	$(NASM) $(NASMFLAGS) gaussian_blur.asm -o gaussian_blur.o
 
-gaussian-asm: gaussian_asm.c $(COMMON_OBJS) gaussian_blur.o
-	$(CC) -O0 $(CFLAGS_BASE) gaussian_asm.c $(COMMON_OBJS) gaussian_blur.o -o gaussian-asm
+# Компиляция C-реализаций с разными уровнями оптимизации
+# main.c всегда компилируется с O2, только gaussian_c.c с указанным уровнем
+gaussian-c-O0: main.c $(COMMON_OBJS) gaussian_c_impl_O0.o
+	$(CC) $(CFLAGS_BASE) main.c $(COMMON_OBJS) gaussian_c_impl_O0.o -o gaussian-c-O0
 
-# Компиляция всех C-версий
-all-c: gaussian-c-O0 gaussian-c-O1 gaussian-c-O2 gaussian-c-O3 gaussian-c-Ofast
+gaussian-c-O1: main.c $(COMMON_OBJS) gaussian_c_impl_O1.o
+	$(CC) $(CFLAGS_BASE) main.c $(COMMON_OBJS) gaussian_c_impl_O1.o -o gaussian-c-O1
 
-# Быстрые тесты
-test-c: gaussian-c-O2
-	./gaussian-c-O2 test_small.bmp output_c_test.bmp
+gaussian-c-O2: main.c $(COMMON_OBJS) gaussian_c_impl_O2.o
+	$(CC) $(CFLAGS_BASE) main.c $(COMMON_OBJS) gaussian_c_impl_O2.o -o gaussian-c-O2
 
-test-asm: gaussian-asm  
-	./gaussian-asm test_small.bmp output_asm.bmp
+gaussian-c-O3: main.c $(COMMON_OBJS) gaussian_c_impl_O3.o
+	$(CC) $(CFLAGS_BASE) main.c $(COMMON_OBJS) gaussian_c_impl_O3.o -o gaussian-c-O3
 
-test-all: all-c gaussian-asm
-	@echo "Тестирование всех версий..."
-	@for opt in O0 O1 O2 O3 Ofast; do \
-		echo "Тестирование C-$$opt..."; \
-		./gaussian-c-$$opt test_small.bmp output_c_$$opt.bmp; \
-	done
-	@echo "Тестирование ASM..."
-	./gaussian-asm test_small.bmp output_asm.bmp
+gaussian-c-Ofast: main.c $(COMMON_OBJS) gaussian_c_impl_Ofast.o
+	$(CC) $(CFLAGS_BASE) main.c $(COMMON_OBJS) gaussian_c_impl_Ofast.o -o gaussian-c-Ofast
+
+# Компиляция ASM-реализации (с макросом USE_ASM)
+# main.c компилируется с O2, используется любая C-реализация для линковки (но не вызывается)
+gaussian-asm: main.c $(COMMON_OBJS) gaussian_c_impl_O2.o gaussian_blur.o
+	$(CC)  -DUSE_ASM $(CFLAGS_BASE) main.c $(COMMON_OBJS) gaussian_c_impl_O2.o gaussian_blur.o -o gaussian-asm
 
 # Генерация отчета
 report: all
@@ -71,4 +71,4 @@ clean-all: clean
 	rm -rf res/
 	rm -rf dataset
 
-.PHONY: all all-c test-c test-asm test-all report clean clean-all
+.PHONY: all report clean clean-all

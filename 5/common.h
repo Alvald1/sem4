@@ -57,8 +57,11 @@ int save_bmp(const char *filename, const Image *img);
 void free_image(Image *img);
 double get_time_diff(struct timespec start, struct timespec end);
 
-// Функции размытия (реализованы в разных файлах)
-void gaussian_blur_c(const Image *input, Image *output);
-void gaussian_blur_asm(const Image *input, Image *output);
+// Единая функция размытия (автоматический выбор реализации)
+double gaussian_blur(const Image *input, Image *output);
+
+// Внутренние функции реализации алгоритма (одинаковая сигнатура)
+void gaussian_blur_c_impl(uint8_t *input, uint8_t *output, int width, int height);
+extern void gaussian_blur_asm_impl(uint8_t *input, uint8_t *output, int width, int height);
 
 #endif
