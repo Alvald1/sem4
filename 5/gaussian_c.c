@@ -1,13 +1,6 @@
 #include "common.h"
 
-// Ядро свертки Гаусса 3x3 в виде целых чисел (умножено на 1024)
-// Аналогично ассемблерной реализации
-static const int gaussian_kernel[3][3] = {
-    {64, 128, 64},
-    {128, 256, 128},
-    {64, 128, 64}};
-
-void gaussian_blur_c_impl(uint8_t *input_data, uint8_t *output_data, int width, int height)
+void gaussian_blur_c_impl(uint8_t *input_data, uint8_t *output_data, int width, int height, const int *kernel)
 {
     int row_size = ((width * 3 + 3) / 4) * 4;
 
@@ -39,7 +32,8 @@ void gaussian_blur_c_impl(uint8_t *input_data, uint8_t *output_data, int width, 
                             py = 2 * height - py - 1;
 
                         int src_offset = py * row_size + px * 3 + c;
-                        int kernel_val = gaussian_kernel[ky + 1][kx + 1];
+                        int kernel_index = (ky + 1) * 3 + (kx + 1);
+                        int kernel_val = kernel[kernel_index];
                         sum += input_data[src_offset] * kernel_val;
                     }
                 }

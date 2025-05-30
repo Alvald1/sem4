@@ -61,7 +61,7 @@ double get_time_diff(struct timespec start, struct timespec end);
 double gaussian_blur(const Image *input, Image *output);
 
 // Внутренние функции реализации алгоритма (одинаковая сигнатура)
-void gaussian_blur_c_impl(uint8_t *input, uint8_t *output, int width, int height);
-extern void gaussian_blur_asm_impl(uint8_t *input, uint8_t *output, int width, int height);
+void gaussian_blur_c_impl(uint8_t *input, uint8_t *output, int width, int height, const int *kernel);
+extern void gaussian_blur_asm_impl(uint8_t *input, uint8_t *output, int width, int height, const int *kernel);
 
 #endif

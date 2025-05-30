@@ -135,6 +135,12 @@ double gaussian_blur(const Image *input, Image *output)
     int height = input->height;
     int row_size = ((width * 3 + 3) / 4) * 4;
 
+    // Ядро свертки Гаусса 3x3 в виде целых чисел (умножено на 1024)
+    static const int gaussian_kernel[9] = {
+        64, 128, 64,
+        128, 256, 128,
+        64, 128, 64};
+
     // Инициализируем выходное изображение
     output->width = width;
     output->height = height;
@@ -152,9 +158,9 @@ double gaussian_blur(const Image *input, Image *output)
     clock_gettime(CLOCK_MONOTONIC, &start);
     // Автоматический выбор реализации на этапе компиляции
 #ifdef USE_ASM
-    gaussian_blur_asm_impl(input->data, output->data, width, height);
+    gaussian_blur_asm_impl(input->data, output->data, width, height, gaussian_kernel);
 #else
-    gaussian_blur_c_impl(input->data, output->data, width, height);
+    gaussian_blur_c_impl(input->data, output->data, width, height, gaussian_kernel);
 #endif
 
     clock_gettime(CLOCK_MONOTONIC, &end);

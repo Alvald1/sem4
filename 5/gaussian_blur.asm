@@ -1,8 +1,3 @@
-section .data
-    ; Ядро свертки Гаусса 3x3 в линейном массиве
-    ; Значения умножены на 1024 для избежания операций с плавающей точкой
-    gaussian_kernel: dw 64, 128, 64, 128, 256, 128, 64, 128, 64
-
 section .text
     global gaussian_blur_asm_impl
 
@@ -12,6 +7,7 @@ section .text
 ;   rsi - указатель на выходные данные (uint8_t *output) 
 ;   rdx - ширина изображения (int width)
 ;   rcx - высота изображения (int height)
+;   r8  - указатель на матрицу свертки (const int *kernel)
 gaussian_blur_asm_impl:
     push rbp
     mov  rbp, rsp
@@ -24,10 +20,11 @@ gaussian_blur_asm_impl:
     push r15
     
     ; Сохраняем параметры
-    mov r12, rdi ; input
-    mov r13, rsi ; output
-    mov r14, rdx ; width
-    mov r15, rcx ; height
+    mov  r12, rdi ; input
+    mov  r13, rsi ; output
+    mov  r14, rdx ; width
+    mov  r15, rcx ; height
+    push r8       ; kernel (сохраняем в стеке)
     
     ; Вычисляем row_size = ((width * 3 + 3) / 4) * 4
     mov  rax, r14
@@ -217,12 +214,17 @@ gaussian_blur_asm_impl:
     
     ; Получаем значение ядра свертки
     ; kernel_index = (ky + 1) * 3 + (kx + 1)
-    mov   rsi, rbx
-    inc   rsi                                   ; ky + 1
-    imul  rsi, 3                                ; (ky + 1) * 3
-    add   rsi, rcx
-    inc   rsi                                   ; + (kx + 1)
-    movzx rsi, word [gaussian_kernel + rsi * 2]
+    mov  rsi, rbx
+    inc  rsi      ; ky + 1
+    imul rsi, 3   ; (ky + 1) * 3
+    add  rsi, rcx
+    inc  rsi      ; + (kx + 1)
+    
+    ; Получаем указатель на kernel из стека
+    push rdi
+    mov  rdi, [rsp + 112]           ; kernel из стека: 8+24+32+48=112 байт
+    mov  esi, dword [rdi + rsi * 4] ; kernel[kernel_index] (int = 4 байта)
+    pop  rdi
     
     ; Умножаем значение пикселя на ядро и добавляем к сумме
     imul rdi, rsi
