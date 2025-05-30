@@ -1,11 +1,11 @@
 #include "common.h"
-#include <math.h>
 
-// Ядро свертки Гаусса 3x3 (локальная копия для C-реализации)
-static const float gaussian_kernel[3][3] = {
-    {0.0625f, 0.125f, 0.0625f},
-    {0.125f, 0.25f, 0.125f},
-    {0.0625f, 0.125f, 0.0625f}};
+// Ядро свертки Гаусса 3x3 в виде целых чисел (умножено на 1024)
+// Аналогично ассемблерной реализации
+static const int gaussian_kernel[3][3] = {
+    {64, 128, 64},
+    {128, 256, 128},
+    {64, 128, 64}};
 
 void gaussian_blur_c_impl(uint8_t *input_data, uint8_t *output_data, int width, int height)
 {
@@ -18,7 +18,7 @@ void gaussian_blur_c_impl(uint8_t *input_data, uint8_t *output_data, int width, 
         {
             for (int c = 0; c < 3; c++)
             { // BGR каналы
-                float sum = 0.0f;
+                int sum = 0;
 
                 // Применяем ядро свертки 3x3
                 for (int ky = -1; ky <= 1; ky++)
@@ -39,13 +39,21 @@ void gaussian_blur_c_impl(uint8_t *input_data, uint8_t *output_data, int width, 
                             py = 2 * height - py - 1;
 
                         int src_offset = py * row_size + px * 3 + c;
-                        float kernel_val = gaussian_kernel[ky + 1][kx + 1];
+                        int kernel_val = gaussian_kernel[ky + 1][kx + 1];
                         sum += input_data[src_offset] * kernel_val;
                     }
                 }
 
+                // Нормализуем результат (делим на 1024 и округляем)
+                sum += 512; // добавляем 0.5 * 1024 для округления
+                sum >>= 10; // делим на 1024
+
+                // Ограничиваем значение диапазоном [0, 255]
+                if (sum > 255)
+                    sum = 255;
+
                 int dst_offset = y * row_size + x * 3 + c;
-                output_data[dst_offset] = (uint8_t)(sum + 0.5f); // Округление
+                output_data[dst_offset] = (uint8_t)sum;
             }
         }
     }
