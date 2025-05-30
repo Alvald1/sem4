@@ -157,8 +157,7 @@ copy_loop:
     mov  rdx, r11
     call write_string_to_buffer
     
-    mov  al, ' '
-    call write_byte_to_buffer
+    
     
     pop rcx
     pop rsi
