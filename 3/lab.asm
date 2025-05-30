@@ -3,15 +3,18 @@ bits    64
 section .data
     buf_size equ 10
     buffer times buf_size db 0
+    out_buf_size equ 20
+    output_buffer times out_buf_size db 0
     env_src db 'SRC=',0
     env_dst db 'DST=',0
     tmp     db 0
 
 section .bss
-    src_fd  resq 1
-    dst_fd  resq 1
-    src_ptr resq 1
-    dst_ptr resq 1
+    src_fd      resq 1
+    dst_fd      resq 1
+    src_ptr     resq 1
+    dst_ptr     resq 1
+    out_buf_pos resq 1 ; текущая позиция в выходном буфере
 
 section .text
     global _start
@@ -86,6 +89,9 @@ found_dst:
     js  close_src
     mov [dst_fd], rax
 
+    ; Инициализировать позицию выходного буфера
+    mov qword [out_buf_pos], 0
+
     xor r15, r15
 
 
@@ -137,31 +143,21 @@ copy_loop:
     push rsi
     push rcx
 
-    mov byte[tmp], ' '
-    mov rax,       1
-    mov rdi,       [dst_fd]
-    mov rsi,       tmp
-    mov rdx,       1
-    syscall
+    mov  al, ' '
+    call write_byte_to_buffer
 
      ; Записать длину слова (print_int_to_buf)
-    mov  edi, r15d        ; число в edi
+    mov  edi, r15d              ; число в edi
     call print_int_to_buf
     ; r11 = длина числа, rsi = указатель на строку числа
-    mov  rax, 1           ; sys_write
-    mov  rdi, [dst_fd]
-    mov  rdx, r11         ; длина числа
-    syscall
+    mov  rdx, r11               ; длина числа
+    call write_string_to_buffer
 
     test r14, r14
     jnz  .m2
 
-    mov byte[tmp], ' '
-    mov rax,       1
-    mov rdi,       [dst_fd]
-    mov rsi,       tmp
-    mov rdx,       1
-    syscall
+    mov  al, ' '
+    call write_byte_to_buffer
 .m2:
     pop rcx
     pop rsi
@@ -183,13 +179,9 @@ copy_loop:
 
 .inc_nl:
     push rsi
-    mov  byte[tmp], 10
-    mov  rax,       1
-    mov  rdi,       [dst_fd]
-    mov  rsi,       tmp
-    mov  rdx,       1
+    mov  al, 10
+    call write_byte_to_buffer
     push rcx
-    syscall
     pop  rcx
     pop  rsi
 
@@ -216,15 +208,12 @@ copy_loop:
     mov r10, rbx ; r10 = конец слова (не включая)
     sub r10, r8  ; r10 = длина слова
 
-
     push rsi
     
-    mov  rax, 1             ; sys_write
-    mov  rdi, [dst_fd]
     lea  rsi, [buffer + r8]
-    mov  rdx, r10           ; длина слова
+    mov  rdx, r10               ; длина слова
     push rcx
-    syscall
+    call write_string_to_buffer
     pop  rcx
     pop  rsi
     add  r15, r10
@@ -237,36 +226,24 @@ copy_loop:
     mov r10, rbx ; r10 = конец слова (не включая)
     sub r10, r8  ; r10 = длина слова
 
-
     push rsi
     push rcx
     
-    mov rax, 1             ; sys_write
-    mov rdi, [dst_fd]
-    lea rsi, [buffer + r8]
-    mov rdx, r10           ; длина слова
-   
-    syscall
+    lea  rsi, [buffer + r8]
+    mov  rdx, r10               ; длина слова
+    call write_string_to_buffer
 
-
-    ; Записать пробел после числа
-    mov byte[tmp], ' '
-    mov rax,       1
-    mov rdi,       [dst_fd]
-    mov rsi,       tmp
-    mov rdx,       1
-    syscall
+    ; Записать пробел после слова
+    mov  al, ' '
+    call write_byte_to_buffer
 
     add  r10, r15
     ; Записать длину слова (print_int_to_buf)
-    mov  edi, r10d        ; число в edi
+    mov  edi, r10d              ; число в edi
     call print_int_to_buf
     ; r11 = длина числа, rsi = указатель на строку числа
-    mov  rax, 1           ; sys_write
-    mov  rdi, [dst_fd]
-    mov  rdx, r11         ; длина числа
-    syscall
-
+    mov  rdx, r11               ; длина числа
+    call write_string_to_buffer
     
     pop rcx
     pop rsi
@@ -281,12 +258,8 @@ copy_loop:
     push rcx
 
     ; Записать пробел после числа
-    mov byte[tmp], ' '
-    mov rax,       1
-    mov rdi,       [dst_fd]
-    mov rsi,       tmp
-    mov rdx,       1
-    syscall
+    mov  al, ' '
+    call write_byte_to_buffer
     
     pop rcx
     pop rsi
@@ -302,6 +275,9 @@ copy_loop:
     jmp copy_loop
 
 close_all:
+    ; Сбросить выходной буфер перед закрытием
+    call flush_output_buffer
+    
     ; Закрыть dst_fd
     mov rax, 3        ; sys_close
     mov rdi, [dst_fd]
@@ -314,9 +290,90 @@ close_src:
     syscall
 
 _exit:
-    mov rax, 60  ; sys_exit
-    xor rdi, rdi
+    ; Сбросить остатки буфера перед выходом
+    call flush_output_buffer
+    mov  rax, 60             ; sys_exit
+    xor  rdi, rdi
     syscall
+
+; Функция записи одного байта в выходной буфер
+; al - байт для записи
+write_byte_to_buffer:
+    push rbx
+    push rcx
+    push rdx
+    
+    mov rbx,                   [out_buf_pos]
+    mov [output_buffer + rbx], al
+    inc rbx
+    mov [out_buf_pos],         rbx
+    
+    ; Проверить, заполнен ли буфер
+    cmp rbx, out_buf_size
+    jne .done
+    
+    ; Буфер заполнен, сбросить его
+    call flush_output_buffer
+    
+.done:
+    pop rdx
+    pop rcx
+    pop rbx
+    ret
+
+; Функция записи строки в выходной буфер
+; rsi - указатель на строку
+; rdx - длина строки
+write_string_to_buffer:
+    push rax
+    push rcx
+    push rsi
+    
+    mov rcx, rdx
+    
+.loop:
+    test rcx, rcx
+    jz   .done
+    
+    mov  al, [rsi]
+    call write_byte_to_buffer
+    inc  rsi
+    dec  rcx
+    jmp  .loop
+    
+.done:
+    pop rsi
+    pop rcx
+    pop rax
+    ret
+
+; Функция сброса выходного буфера в файл
+flush_output_buffer:
+    push rax
+    push rdi
+    push rsi
+    push rdx
+    
+    mov  rax, [out_buf_pos]
+    test rax, rax
+    jz   .done              ; буфер пуст
+    
+    ; Записать буфер в файл
+    mov rax, 1             ; sys_write
+    mov rdi, [dst_fd]
+    mov rsi, output_buffer
+    mov rdx, [out_buf_pos]
+    syscall
+    
+    ; Сбросить позицию буфера
+    mov qword [out_buf_pos], 0
+    
+.done:
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rax
+    ret
 
 trim_spaces:
     push rbx

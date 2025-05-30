@@ -2,3 +2,4 @@ obj
 test*
 bin
 .gdb_history
+*.txt
