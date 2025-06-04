@@ -1,0 +1,17 @@
+obj
+test*
+bin
+.gdb_history
+out
+*.o
+lab
+*.swp
+main.asm
+lab5.txt
+task.txt
+lab-O*
+*.backup
+__pycache__
+res
+gaussian-*
+dataset
